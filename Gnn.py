@@ -6,7 +6,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 train_losses = []
-num_epochs = 30  # Define the number of epochs
+num_epochs = 100  # Define the number of epochs
 
 # Define your GNN model architecture for regression
 class MyGNN(torch.nn.Module):
@@ -28,20 +28,24 @@ class MyGNN(torch.nn.Module):
         # Apply the output layer for regression
         x = self.out_layer(x).squeeze(1)  # Squeeze to get rid of extra dimension
         return x
+    
 # Instantiate your model
 model = MyGNN()
 # Train your regression model
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.001)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01, weight_decay=0.001)
 criterion = torch.nn.MSELoss()  # Mean Squared Error loss for regression
-# Define the scheduler outside the training loop
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
-# Initialize variables for early stopping
+
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=2, gamma=0.1)
+
 min_loss = float('inf')  # Initialize with a large value
-patience = 5  # Define the number of epochs to wait for loss improvement
+patience = 4  # Define the number of epochs to wait for loss improvement
 counter = 0  # Counter to track epochs without improvement
 
 for epoch in range(num_epochs):
     epoch_loss = 0.0
+    epoch_predictions = []
+    epoch_targets = []
+
     for data in loader:
         optimizer.zero_grad()
         out = model(data.x.float(), data.edge_index)
@@ -49,6 +53,10 @@ for epoch in range(num_epochs):
         loss.backward()
         optimizer.step()
         epoch_loss += loss.item()
+
+        # Store predictions and targets for later visualization
+        epoch_predictions.extend(out.detach().numpy())
+        epoch_targets.extend(data.y.numpy())
         
     scheduler.step()
     epoch_loss /= len(data_list)
@@ -65,10 +73,18 @@ for epoch in range(num_epochs):
     if counter >= patience:
         print(f'Early stopping at epoch {epoch+1} as no improvement observed for {patience} epochs.')
         break
+        
+# After training, add testing code
+test_losses = []
+model.eval()  # Set the model to evaluation mode
 
-# Plot learning curve
-plt.plot(train_losses)
-plt.xlabel('Epochs')
-plt.ylabel('Training Loss')
-plt.title('Training Loss Curve')
-plt.show()
+for data in test_loader:
+    with torch.no_grad():
+        out = model(data.x.float(), data.edge_index)
+        test_loss = criterion(out, data.y.float())
+        test_losses.append(test_loss.item())
+
+# Calculate average test loss
+avg_test_loss = sum(test_losses) / len(test_losses)
+print(f'Average Test Loss: {avg_test_loss:.4f}')
+        
