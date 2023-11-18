@@ -5,7 +5,8 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 import networkx as nx
 import matplotlib.pyplot as plt
 
-num_epochs = 25  # Define the number of epochs
+train_losses = []
+num_epochs = 30  # Define the number of epochs
 
 # Define your GNN model architecture for regression
 class MyGNN(torch.nn.Module):
@@ -27,25 +28,47 @@ class MyGNN(torch.nn.Module):
         # Apply the output layer for regression
         x = self.out_layer(x).squeeze(1)  # Squeeze to get rid of extra dimension
         return x
-
 # Instantiate your model
 model = MyGNN()
 # Train your regression model
-optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=0.001)
 criterion = torch.nn.MSELoss()  # Mean Squared Error loss for regression
+# Define the scheduler outside the training loop
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.1)
+# Initialize variables for early stopping
+min_loss = float('inf')  # Initialize with a large value
+patience = 5  # Define the number of epochs to wait for loss improvement
+counter = 0  # Counter to track epochs without improvement
 
 for epoch in range(num_epochs):
+    epoch_loss = 0.0
     for data in loader:
         optimizer.zero_grad()
         out = model(data.x.float(), data.edge_index)
         loss = criterion(out, data.y.float())  # Ensure targets are float for regression
         loss.backward()
         optimizer.step()
+        epoch_loss += loss.item()
+        
+    scheduler.step()
+    epoch_loss /= len(data_list)
+    train_losses.append(epoch_loss)
+    print(f'Epoch [{epoch+1}/{num_epochs}], Training Loss: {epoch_loss:.4f}')
+    
+    # Stopping criterion: Check for loss improvement
+    if epoch_loss < min_loss:
+        min_loss = epoch_loss
+        counter = 0  # Reset counter since there's an improvement
+    else:
+        counter += 1  # Increment counter if no improvement
+    
+    if counter >= patience:
+        print(f'Early stopping at epoch {epoch+1} as no improvement observed for {patience} epochs.')
+        break
 
-    # Optionally validate or test your model after each epoch
-    # ...
-
-    print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
-
-# Optionally, save your trained model
-# torch.save(model.state_dict(), 'gnn_regression_model.pth')
+# Plot learning curve
+plt.plot(train_losses)
+plt.xlabel('Epochs')
+plt.ylabel('Training Loss')
+plt.title('Training Loss Curve')
+plt.show()
