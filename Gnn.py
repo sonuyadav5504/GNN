@@ -60,6 +60,14 @@ for epoch in range(num_epochs):
 
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Valid Loss: {val_loss:.4f}')
 
+
+# visualizing the varerage train and test loss    
+avg_train_loss = sum(train_losses) / len(train_losses)
+print(f'Average Train Loss: {avg_train_loss:.4f}')
+
+avg_test_loss = sum(valid_losses) / len(valid_losses)
+print(f'Average Test Loss: {avg_test_loss:.4f}')
+
 # Plotting the learning curves
 plt.plot(train_losses, label='Training Loss')
 plt.plot(valid_losses, label='Validation Loss')
@@ -67,15 +75,3 @@ plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
 plt.show()
-
-# Testing loop
-test_losses = []
-model.eval()
-for data in test_loader:
-    with torch.no_grad():
-        out = model(data.x.float(), data.edge_index)
-        loss = criterion(out, data.y.float())
-        test_losses.append(loss.item())
-
-avg_test_loss = sum(test_losses) / len(test_losses)
-print(f'Average Test Loss: {avg_test_loss:.4f}')
