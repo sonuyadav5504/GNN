@@ -39,35 +39,46 @@ model = MyGNN()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 criterion = torch.nn.BCEWithLogitsLoss()  # Binary Cross Entropy loss for binary classification
 
-# Assuming graph_labels are binary (0 or 1)
-# graph_labels_c = graph_labels_c.float()  # Convert labels to float for BCEWithLogitsLoss
 
 # Training loop
 train_losses = []
 valid_losses = []
 best_loss = float('inf')
-num_epochs = 30  # Set your desired number of epochs
-l=len(loader_c)
+num_epochs = 100  # Set your desired number of epochs
+total_batches = len(loader_c)
 for epoch in range(num_epochs):
     model.train()
     epoch_loss = 0.0
-    for data in loader_c:
-        if i>len(loader_c):
-            optimizer.zero_grad()
-            out = model(data.x.float(), data.edge_index)
-            print("out ",out.squeeze().size())
-            print("data ",data.y.size())
-            loss = criterion(out.squeeze(), data.y.float())  # Use data.y for graph labels
-            loss.backward()
-            optimizer.step()
-            epoch_loss += loss.item()
+    for idx, data in enumerate(loader_c):
+        if idx == total_batches - 1:  # Skip the last batch
+            break
+            
+        optimizer.zero_grad()
+        out = model(data.x.float(), data.edge_index)
+        loss = criterion(out.squeeze(), data.y.float())
+        loss.backward()
+        optimizer.step()
+        epoch_loss += loss.item()
 
-    epoch_loss /= len(loader_c)
+    epoch_loss /= (total_batches - 1)  # Adjust for skipping the last batch
     train_losses.append(epoch_loss)
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}')
-# # Evaluation
-# model.eval()
-# with torch.no_grad():
-#     predictions = model(data.x.float(), data.edge_index)
-#     roc_auc = roc_auc_score(graph_labels.numpy(), torch.sigmoid(predictions.squeeze()).numpy())
-#     print(f'ROC-AUC: {roc_auc:.4f}')
+
+# Validation loop
+model.eval()
+y_true = []
+y_pred = []
+
+with torch.no_grad():
+    for idx, data in enumerate(loader_c):
+        if idx == total_batches - 1:  # Skip the last batch
+            break
+             # Assuming loader_valid contains validation data
+        out = model(data.x.float(), data.edge_index)
+        pred = torch.sigmoid(out).cpu().numpy().flatten()  # Sigmoid for binary predictions
+        y_pred.extend(pred)
+        y_true.extend(data.y.cpu().numpy().flatten())
+
+# Calculate ROC-AUC score
+roc_auc = roc_auc_score(y_true, y_pred)
+print(f"Validation ROC-AUC: {roc_auc}")
