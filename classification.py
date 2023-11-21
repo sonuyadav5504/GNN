@@ -9,6 +9,7 @@ for data in loader:
     break
     
 loader_valid=loader_c
+# Assuming loader_c and loader_valid are defined
 
 class ROCAUC(torch.nn.Module):
     def __init__(self):
@@ -112,9 +113,16 @@ for epoch in range(num_epochs):
     valid_roc_auc_list.append(valid_roc_auc)
     print(f'Epoch [{epoch+1}/{num_epochs}], Train ROC-AUC: {train_roc_auc:.4f},Validation ROC-AUC: {valid_roc_auc:.4f}')
 
-    model.train()  # Set the model back to train mode
-    
+    model.train() 
+
+# Plot learning curves
 plt.plot(train_roc_auc_list, label='Training ROC-AUC')
+plt.plot(valid_roc_auc_list, label='Validation ROC-AUC')
+plt.xlabel('Epochs')
+plt.ylabel('ROC-AUC')
+plt.legend()
+plt.show()
+
 plt.plot(valid_roc_auc_list, label='Validation ROC-AUC')
 plt.xlabel('Epochs')
 plt.ylabel('ROC-AUC')
