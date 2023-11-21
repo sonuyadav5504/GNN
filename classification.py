@@ -4,6 +4,10 @@ from torch_geometric.data import DataLoader
 from torch_geometric.nn import GCNConv, global_mean_pool
 from sklearn.metrics import roc_auc_score
 
+for data in loader:
+    num_features = data.x.shape[1]  # Get the number of features from 'x'
+    break
+    
 loader_valid=loader_c
 
 class ROCAUC(torch.nn.Module):
@@ -16,7 +20,7 @@ class ROCAUC(torch.nn.Module):
 
 # Define your GNN model architecture for binary classification
 class MyGNN(torch.nn.Module):
-    def __init__(self, num_features):
+    def __init__(self):
         super(MyGNN, self).__init__()
         self.conv1 = GCNConv(num_features, 8)
         self.bn1 = torch.nn.BatchNorm1d(8)
@@ -50,8 +54,7 @@ class MyGNN(torch.nn.Module):
         return x
 
 # Initialize your GNN model
-num_features =  9  # Replace with the appropriate number of features
-model = MyGNN(num_features)
+model = MyGNN()
 
 # Define optimizer and loss function
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
@@ -64,7 +67,7 @@ train_roc_auc_list = []
 valid_losses = []
 valid_roc_auc_list = []
 best_loss = float('inf')
-num_epochs = 5  # Set your desired number of epochs
+num_epochs = 100  # Set your desired number of epochs
 
 for epoch in range(num_epochs):
     model.train()
