@@ -27,22 +27,22 @@ class MyGINRegression(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Dropout(0.5)  
         ))
-#         self.conv3 = GINConv(torch.nn.Sequential(
-#             torch.nn.Linear(64, 128),
-#             torch.nn.ReLU(),
-#             torch.nn.Linear(128, 128),
-#             torch.nn.BatchNorm1d(128),
-#             torch.nn.ReLU(),
-#             torch.nn.Dropout(0.5) 
-#         ))
+        self.conv3 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(64, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.BatchNorm1d(128),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5) 
+        ))
         self.mlp = torch.nn.Sequential(
-            torch.nn.Linear(64, 1)
+            torch.nn.Linear(128, 1)
         )
 
     def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
         x = self.conv2(x, edge_index)
-#         x = self.conv3(x, edge_index)
+        x = self.conv3(x, edge_index)
         x = global_add_pool(x, batch)
         x = self.mlp(x).squeeze(1)
         return x
@@ -51,7 +51,7 @@ model = MyGINRegression()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 criterion = torch.nn.MSELoss()
 
-num_epochs = 100
+num_epochs = 20
 train_losses = []
 valid_losses = []
 
