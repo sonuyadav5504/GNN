@@ -1,65 +1,68 @@
 import torch
 import torch.nn.functional as F
-from torch_geometric.data import Data, DataLoader
-from torch_geometric.nn import GCNConv, global_max_pool
+from torch_geometric.data import DataLoader
+from torch_geometric.nn import GINConv, global_add_pool
 import matplotlib.pyplot as plt
 
 for data in loader:
-    num_features = data.x.shape[1]  # Get the number of features from 'x'
+    num_features = data.x.shape[1]  
     break
 
-# Define your GNN model architecture for binary classification
-class MyGNN(torch.nn.Module):
+class MyGINRegression(torch.nn.Module):
     def __init__(self):
-        super(MyGNN, self).__init__()
-        self.conv1 = GCNConv(num_features, 8)
-        self.bn1 = torch.nn.BatchNorm1d(8)
-        self.conv2 = GCNConv(8, 16)
-        self.bn2 = torch.nn.BatchNorm1d(16)
-        self.dropout1 = torch.nn.Dropout(0.4)
-        self.conv3 = GCNConv(16, 16)
-        self.bn3 = torch.nn.BatchNorm1d(16)
-        self.dropout2 = torch.nn.Dropout(0.4)
-        self.conv4 = GCNConv(16, 8)
-        self.bn4 = torch.nn.BatchNorm1d(8)
-        self.out_layer = torch.nn.Linear(8, 1)  # Output layer for binary classification
+        super(MyGINRegression, self).__init__()
+        self.conv1 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(num_features, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 32),
+            torch.nn.BatchNorm1d(32),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5) 
+        ))
+        self.conv2 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(32, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 64),
+            torch.nn.BatchNorm1d(64),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5)  
+        ))
+        self.conv3 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(64, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.BatchNorm1d(128),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5) 
+        ))
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(128, 1)
+        )
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
-        x = self.bn1(x)
-        x = torch.relu(x)
         x = self.conv2(x, edge_index)
-        x = self.bn2(x)
-        x = torch.relu(x)
-        x = self.dropout1(x)
         x = self.conv3(x, edge_index)
-        x = self.bn3(x)
-        x = torch.relu(x)
-        x = self.dropout2(x)
-        x = self.conv4(x, edge_index)
-        x = self.bn4(x)
-        x = torch.relu(x)
-        x = global_max_pool(x, batch=None)
-        x = self.out_layer(x).squeeze(1)  # Adjust the shape for binary classification
+        x = global_add_pool(x, batch)
+        x = self.mlp(x).squeeze(1)
         return x
 
-# Instantiate your model
-model = MyGNN()
-optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+model = MyGINRegression()
+optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 criterion = torch.nn.MSELoss()
 
-num_epochs = 20
+num_epochs = 100
 train_losses = []
 valid_losses = []
-best_loss = float('inf')
 
 for epoch in range(num_epochs):
     model.train()
     epoch_loss = 0.0
     for data in loader:
         optimizer.zero_grad()
-        out = model(data.x.float(), data.edge_index)
-        target = data.y.view(-1, 1).float()  # Reshape target to match the output shape
+        edge_index = data.edge_index.to(torch.int64)
+        out = model(data.x.float(), edge_index, data.batch)
+        target = data.y.view(-1, 1).float()
         loss = criterion(out, target)
         
         loss.backward()
@@ -72,18 +75,18 @@ for epoch in range(num_epochs):
     model.eval()
     with torch.no_grad():
         val_loss = 0.0
-        for data in test_loader:
-            out = model(data.x.float(), data.edge_index)
-            target = data.y.view(-1, 1).float()  # Reshape target to match the output shape
+        for data in loader:
+            edge_index = data.edge_index.to(torch.int64)
+            out = model(data.x.float(), edge_index, data.batch)
+            target = data.y.view(-1, 1).float()
             loss = criterion(out, target)
             
             val_loss += loss.item()
-        val_loss /= len(test_loader)
+        val_loss /= len(loader)
         valid_losses.append(val_loss)
         
     print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Valid Loss: {val_loss:.4f}')
 
-# Plotting the learning curves
 plt.plot(train_losses, label='Training Loss')
 plt.plot(valid_losses, label='Validation Loss')
 plt.xlabel('Epochs')
@@ -91,7 +94,6 @@ plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-# Plotting the learning curves
 plt.plot(valid_losses, label='Validation Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
