@@ -1,15 +1,8 @@
 import torch
 import matplotlib.pyplot as plt
 from torch_geometric.data import DataLoader
-from torch_geometric.nn import GCNConv, global_mean_pool
+from torch_geometric.nn import GINConv, global_add_pool
 from sklearn.metrics import roc_auc_score
-
-for data in loader:
-    num_features = data.x.shape[1]  # Get the number of features from 'x'
-    break
-    
-loader_valid=loader_c
-# Assuming loader_c and loader_valid are defined
 
 class ROCAUC(torch.nn.Module):
     def __init__(self):
@@ -19,48 +12,56 @@ class ROCAUC(torch.nn.Module):
         y_pred_sigmoid = torch.sigmoid(y_pred)
         return roc_auc_score(y_true.cpu().detach().numpy(), y_pred_sigmoid.cpu().detach().numpy())
 
-# Define your GNN model architecture for binary classification
-class MyGNN(torch.nn.Module):
-    def __init__(self):
-        super(MyGNN, self).__init__()
-        self.conv1 = GCNConv(num_features, 8)
-        self.bn1 = torch.nn.BatchNorm1d(8)
-        self.conv2 = GCNConv(8, 16)
-        self.bn2 = torch.nn.BatchNorm1d(16)
-        self.dropout1 = torch.nn.Dropout(0.4)
-        self.conv3 = GCNConv(16, 32)
-        self.bn3 = torch.nn.BatchNorm1d(32)
-        self.dropout2 = torch.nn.Dropout(0.4)
-        self.conv4 = GCNConv(32, 64)
-        self.bn4 = torch.nn.BatchNorm1d(64)
-        self.out_layer = torch.nn.Linear(64, 32)  # Output layer for binary classification
+# GNN model architecture for binary classification using GIN
+class MyGIN(torch.nn.Module):
+    def __init__(self, num_features):
+        super(MyGIN, self).__init__()
+        self.conv1 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(num_features, 32),
+            torch.nn.ReLU(),
+            torch.nn.Linear(32, 32),
+            torch.nn.BatchNorm1d(32),
+            torch.nn.ReLU()
+        ))
+        self.conv2 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(32, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 64),
+            torch.nn.BatchNorm1d(64),
+            torch.nn.ReLU()
+        ))
+        self.conv3 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(64, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.BatchNorm1d(128),
+            torch.nn.ReLU()
+        ))
+        self.mlp = torch.nn.Sequential(
+            torch.nn.Linear(128, 64),
+            torch.nn.ReLU(),
+            torch.nn.Linear(64, 1)
+        )
 
-    def forward(self, x, edge_index):
+    def forward(self, x, edge_index, batch):
         x = self.conv1(x, edge_index)
-        x = self.bn1(x)
-        x = torch.relu(x)
         x = self.conv2(x, edge_index)
-        x = self.bn2(x)
-        x = torch.relu(x)
-        x = self.dropout1(x)
         x = self.conv3(x, edge_index)
-        x = self.bn3(x)
-        x = torch.relu(x)
-        x = self.dropout2(x)
-        x = self.conv4(x, edge_index)
-        x = self.bn4(x)
-        x = torch.relu(x)
-        x = global_mean_pool(x, batch=None)
-        x = self.out_layer(x).squeeze(1)  # Adjust the shape for binary classification
+        x = global_add_pool(x, batch)
+        x = self.mlp(x).squeeze(1)
         return x
 
-# Initialize your GNN model
-model = MyGNN()
+#  GNN model
+for data in loader_c:
+    num_features = data.x.shape[1]  
+    break
 
-# Define optimizer and loss function
+model = MyGIN(num_features)
+
+# optimizer and loss function
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
-criterion = torch.nn.BCEWithLogitsLoss()  # Binary Cross Entropy loss for binary classification
-criterion_roc_auc = ROCAUC()  # Custom ROC-AUC metric
+criterion = torch.nn.BCEWithLogitsLoss()
+criterion_roc_auc = ROCAUC()
 
 # Training loop
 train_losses = []
@@ -68,7 +69,7 @@ train_roc_auc_list = []
 valid_losses = []
 valid_roc_auc_list = []
 best_loss = float('inf')
-num_epochs = 100  # Set your desired number of epochs
+num_epochs = 20
 
 for epoch in range(num_epochs):
     model.train()
@@ -76,12 +77,9 @@ for epoch in range(num_epochs):
     y_true_train = []
     y_pred_train = []
     
-    for idx, data in enumerate(loader_c):
-        if idx == total_batches - 1:  # Skip the last batch
-            break
-            
+    for data in loader_c:
         optimizer.zero_grad()
-        out = model(data.x.float(), data.edge_index)
+        out = model(data.x.float(), data.edge_index, data.batch)
         loss = criterion(out.squeeze(), data.y.float())
         loss.backward()
         optimizer.step()
@@ -93,16 +91,13 @@ for epoch in range(num_epochs):
     train_roc_auc = criterion_roc_auc(torch.tensor(y_pred_train), torch.tensor(y_true_train))
     train_roc_auc_list.append(train_roc_auc)
 
-    # Validation loop
     model.eval()
     valid_loss = 0.0
     y_true_valid = []
     y_pred_valid = []
     with torch.no_grad():
-        for idx, data in enumerate(loader_valid):
-            if idx == total_batches - 1:  # Skip the last batch
-                break
-            out = model(data.x.float(), data.edge_index)
+        for data in loader_valid:
+            out = model(data.x.float(), data.edge_index, data.batch)
             loss = criterion(out.squeeze(), data.y.float())
             valid_loss += loss.item()
             
@@ -111,9 +106,9 @@ for epoch in range(num_epochs):
             
     valid_roc_auc = criterion_roc_auc(torch.tensor(y_pred_valid), torch.tensor(y_true_valid))
     valid_roc_auc_list.append(valid_roc_auc)
-    print(f'Epoch [{epoch+1}/{num_epochs}], Train ROC-AUC: {train_roc_auc:.4f},Validation ROC-AUC: {valid_roc_auc:.4f}')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Train ROC-AUC: {train_roc_auc:.4f}, Validation ROC-AUC: {valid_roc_auc:.4f}')
 
-    model.train() 
+    model.train()
 
 # Plot learning curves
 plt.plot(train_roc_auc_list, label='Training ROC-AUC')
