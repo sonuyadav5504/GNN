@@ -35,6 +35,14 @@ class MyGINRegression(torch.nn.Module):
             torch.nn.ReLU(),
             torch.nn.Dropout(0.5) 
         ))
+        self.conv4 = GINConv(torch.nn.Sequential(
+            torch.nn.Linear(128, 128),
+            torch.nn.ReLU(),
+            torch.nn.Linear(128, 128),
+            torch.nn.BatchNorm1d(128),
+            torch.nn.ReLU(),
+            torch.nn.Dropout(0.5) 
+        ))
         self.mlp = torch.nn.Sequential(
             torch.nn.Linear(128, 1)
         )
@@ -43,6 +51,7 @@ class MyGINRegression(torch.nn.Module):
         x = self.conv1(x, edge_index)
         x = self.conv2(x, edge_index)
         x = self.conv3(x, edge_index)
+        x = self.conv4(x, edge_index)
         x = global_add_pool(x, batch)
         x = self.mlp(x).squeeze(1)
         return x
@@ -51,7 +60,7 @@ model = MyGINRegression()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 criterion = torch.nn.MSELoss()
 
-num_epochs = 20
+num_epochs = 100
 train_losses = []
 valid_losses = []
 
@@ -87,16 +96,16 @@ for epoch in range(num_epochs):
         val_loss /= len(loader)
         valid_losses.append(val_loss)
         
-    print(f'Epoch [{epoch+1}/{num_epochs}], Train Loss: {epoch_loss:.4f}, Valid Loss: {val_loss:.4f}')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Train RMSE Loss: {epoch_loss:.4f}, Valid RMSE Loss: {val_loss:.4f}')
 
-plt.plot(train_losses, label='Training Loss')
-plt.plot(valid_losses, label='Validation Loss')
+plt.plot(train_losses, label='Training RMSE Loss')
+plt.plot(valid_losses, label='Validation RMSE Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
 plt.show()
 
-plt.plot(valid_losses, label='Validation Loss')
+plt.plot(valid_losses, label='Validation RMSE Loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
 plt.legend()
