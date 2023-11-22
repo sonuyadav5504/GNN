@@ -12,7 +12,7 @@ class ROCAUC(torch.nn.Module):
         y_pred_sigmoid = torch.sigmoid(y_pred)
         return roc_auc_score(y_true.cpu().detach().numpy(), y_pred_sigmoid.cpu().detach().numpy())
 
-# GNN model architecture for binary classification using GIN
+# Define your GNN model architecture for binary classification using GIN
 class MyGIN(torch.nn.Module):
     def __init__(self, num_features):
         super(MyGIN, self).__init__()
@@ -51,14 +51,14 @@ class MyGIN(torch.nn.Module):
         x = self.mlp(x).squeeze(1)
         return x
 
-#  GNN model
+# Define your GNN model
 for data in loader_c:
     num_features = data.x.shape[1]  
     break
 
 model = MyGIN(num_features)
 
-# optimizer and loss function
+# Define optimizer and loss function
 optimizer = torch.optim.Adam(model.parameters(), lr=0.0001)
 criterion = torch.nn.BCEWithLogitsLoss()
 criterion_roc_auc = ROCAUC()
@@ -69,7 +69,7 @@ train_roc_auc_list = []
 valid_losses = []
 valid_roc_auc_list = []
 best_loss = float('inf')
-num_epochs = 20
+num_epochs = 100
 
 for epoch in range(num_epochs):
     model.train()
@@ -96,7 +96,7 @@ for epoch in range(num_epochs):
     y_true_valid = []
     y_pred_valid = []
     with torch.no_grad():
-        for data in loader_valid:
+        for data in test_loader_c:
             out = model(data.x.float(), data.edge_index, data.batch)
             loss = criterion(out.squeeze(), data.y.float())
             valid_loss += loss.item()
