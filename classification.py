@@ -124,7 +124,7 @@ train_roc_auc_list = []
 valid_losses = []
 valid_roc_auc_list = []
 best_loss = float('inf')
-num_epochs = 10
+num_epochs = 100
 
 for epoch in range(num_epochs):
     model.train()
